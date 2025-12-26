@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GPS Privé</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <style>
+        body { margin: 0; padding: 0; font-family: -apple-system, sans-serif; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; z-index: 1; }
+        
+        #ui { position: fixed; top: 15px; left: 50%; transform: translateX(-50%); z-index: 1000; 
+              background: white; padding: 15px; border-radius: 20px; width: 85%; max-width: 380px; 
+              box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center; }
+        
+        .stats { display: flex; justify-content: space-around; margin: 10px 0; border-top: 1px solid #eee; padding-top: 10px; }
+        .val { font-size: 22px; font-weight: bold; color: #007AFF; }
+        
+        .btn-main { background: #007AFF; color: white; border: none; padding: 12px; width: 100%; 
+                    border-radius: 12px; font-weight: bold; font-size: 16px; margin-bottom: 8px; }
+        
+        #locate-btn { position: fixed; bottom: 30px; right: 20px; z-index: 1000; 
+                      background: white; border: none; width: 50px; height: 50px; border-radius: 25px;
+                      box-shadow: 0 4px 15px rgba(0,0,0,0.3); font-size: 24px; cursor: pointer; }
+        
+        .leaflet-routing-container { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <button id="locate-btn" onclick="meLocaliser()">🎯</button>
+
+    <div id="ui">
+        <div id="status" style="font-weight: 600;">📍 Choisissez votre destination</div>
+        <div class="stats">
+            <div><span id="d" class="val">--</span><br><small>KM</small></div>
+            <div><span id="t" class="val">--</span><br><small>MIN</small></div>
+        </div>
+        <button class="btn-main" onclick="calculer()">CALCULER</button>
+        <div onclick="location.reload()" style="color: #8e8e93; font-size: 12px; cursor: pointer;">Réinitialiser</div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+    <script>
+        var map = L.map('map', { zoomControl: false }).setView([46.6, 2.4], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        var points = [];
+        var control = null;
+
+        function meLocaliser() {
+            map.locate({setView: true, maxZoom: 15});
+        }
+
+        map.on('locationfound', function(e) {
+            if (points.length === 0) {
+                points.push(e.latlng);
+                L.circle(e.latlng, {radius: 10, color: '#007AFF'}).addTo(map);
+                document.getElementById('status').innerText = "📍 Ma position OK. Cliquez l'arrivée.";
+            }
+        });
+
+        map.on('click', function(e) {
+            if (points.length < 2) {
+                points.push(e.latlng);
+                L.marker(e.latlng).addTo(map);
+            }
+        });
+
+        function calculer() {
+            if (points.length < 2) return alert("Positionnez 2 points");
+            if (control) map.removeControl(control);
+
+            control = L.Routing.control({
+                waypoints: points,
+                showAlternatives: true,
+                altLineOptions: { styles: [{color: '#000', opacity: 0.1, weight: 12}, {color: 'gray', opacity: 0.6, weight: 6}] },
+                lineOptions: { styles: [{color: '#007AFF', weight: 8}] },
+                createMarker: function() { return null; }
+            }).addTo(map);
+
+            control.on('routesfound', function(e) {
+                function update(i) {
+                    var r = e.routes[i];
+                    document.getElementById('d').innerText = (r.summary.totalDistance/1000).toFixed(1);
+                    document.getElementById('t').innerText = Math.round(r.summary.totalTime/60);
+                    document.getElementById('status').innerText = "Trajet " + (i+1) + " sur " + e.routes.length;
+                }
+                update(0);
+                control.on('routeSelected', function(ev) {
+                    update(e.routes.indexOf(ev.route));
+                });
+            });
+        }
+    </script>
+</body>
+</html>
